@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASAG — Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<header>
+  <h1>ASAG</h1>
+  <span class="pill">Dashboard</span>
+</header>
+
+<div class="container">
+  <a class="back-link" href="index.html">← Grade another batch</a>
+
+  <div id="loading" class="status-bar info">Loading results…</div>
+  <div id="error"   class="status-bar error" style="display:none"></div>
+
+  <!-- Stats row -->
+  <div class="stats-row" id="stats" style="display:none">
+    <div class="stat"><div class="val" id="stat-n">—</div><div class="lbl">Responses</div></div>
+    <div class="stat"><div class="val" id="stat-avg">—</div><div class="lbl">Mean grade</div></div>
+    <div class="stat"><div class="val" id="stat-med">—</div><div class="lbl">Median</div></div>
+    <div class="stat"><div class="val" id="stat-pass">—</div><div class="lbl">≥ 3 / 5</div></div>
+  </div>
+
+  <!-- Distribution chart -->
+  <div class="card" id="chart-card" style="display:none">
+    <h2>Grade Distribution</h2>
+    <div class="chart-wrap">
+      <canvas id="dist-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- Student table -->
+  <div class="card" id="table-card" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <h2 style="margin:0">Student Responses</h2>
+      <button class="btn-ghost" onclick="exportCSV()">↓ Export CSV</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Response</th>
+            <th>Grade / 5</th>
+            <th>Sim (demoted)</th>
+            <th>Keyword cov.</th>
+            <th>Length ratio</th>
+            <th>Jaccard</th>
+          </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+function apiKey() { return localStorage.getItem('asag_key') || 'dev-key'; }
+function headers() { return { 'X-API-Key': apiKey() }; }
+
+const params  = new URLSearchParams(location.search);
+const jobId   = params.get('job_id');
+let   allGrades = [];
+
+async function load() {
+  if (!jobId) { showError('No job_id in URL.'); return; }
+
+  const res = await fetch(`${API}/jobs/${jobId}`, { headers: headers() });
+  if (!res.ok) { showError('Could not load job ' + jobId); return; }
+  const job = await res.json();
+
+  if (job.status !== 'done') { showError('Job status: ' + job.status); return; }
+
+  allGrades = job.grades || [];
+  renderStats(allGrades);
+  renderChart(allGrades);
+  renderTable(allGrades);
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('stats').style.display = 'flex';
+  document.getElementById('chart-card').style.display = 'block';
+  document.getElementById('table-card').style.display = 'block';
+}
+
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  const el = document.getElementById('error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ── stats ────────────────────────────────────────────────────────────────────
+function renderStats(grades) {
+  const vals = grades.map(g => g.predicted_grade).sort((a, b) => a - b);
+  const avg  = vals.reduce((s, v) => s + v, 0) / vals.length;
+  const med  = vals.length % 2 === 0
+    ? (vals[vals.length/2 - 1] + vals[vals.length/2]) / 2
+    : vals[Math.floor(vals.length/2)];
+  const pass = vals.filter(v => v >= 3).length;
+
+  document.getElementById('stat-n').textContent   = vals.length;
+  document.getElementById('stat-avg').textContent  = avg.toFixed(2);
+  document.getElementById('stat-med').textContent  = med.toFixed(2);
+  document.getElementById('stat-pass').textContent = pass + ' (' + Math.round(pass/vals.length*100) + '%)';
+}
+
+// ── chart ─────────────────────────────────────────────────────────────────────
+function renderChart(grades) {
+  const bins   = [0, 1, 2, 3, 4, 5];
+  const labels = ['0–1', '1–2', '2–3', '3–4', '4–5'];
+  const counts = Array(5).fill(0);
+  grades.forEach(g => {
+    const v = g.predicted_grade;
+    const i = Math.min(Math.floor(v), 4);
+    counts[i]++;
+  });
+
+  const colors = [
+    'rgba(229,57,53,.75)',
+    'rgba(251,140,0,.75)',
+    'rgba(253,216,53,.75)',
+    'rgba(102,187,106,.75)',
+    'rgba(66,165,245,.75)',
+  ];
+
+  new Chart(document.getElementById('dist-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Students',
+        data: counts,
+        backgroundColor: colors,
+        borderRadius: 6,
+        borderSkipped: false,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y} student${ctx.parsed.y !== 1 ? 's' : ''}`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { stepSize: 1, precision: 0 },
+          grid: { color: '#f0f0f0' },
+          title: { display: true, text: 'Students' },
+        },
+        x: {
+          grid: { display: false },
+          title: { display: true, text: 'Grade band' },
+        },
+      },
+    },
+  });
+}
+
+// ── table ─────────────────────────────────────────────────────────────────────
+function gradeBadge(g) {
+  const cls = g >= 3.5 ? 'grade-high' : g >= 2 ? 'grade-mid' : 'grade-low';
+  return `<span class="grade-badge ${cls}">${g.toFixed(2)}</span>`;
+}
+
+function renderTable(grades) {
+  const sorted = [...grades].sort((a, b) => b.predicted_grade - a.predicted_grade);
+  const tbody  = document.getElementById('results-body');
+  tbody.innerHTML = sorted.map((g, i) => {
+    const f = g.features || {};
+    return `<tr>
+      <td>${i + 1}</td>
+      <td class="answer-cell"><p title="${esc(g.response_id)}">${esc(g.response_id)}</p></td>
+      <td>${gradeBadge(g.predicted_grade)}</td>
+      <td>${fmt(f.sim_with_demotion)}</td>
+      <td>${fmt(f.keyword_coverage)}</td>
+      <td>${fmt(f.length_ratio)}</td>
+      <td>${fmt(f.jaccard_unigram)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmt(v) { return v !== undefined ? Number(v).toFixed(3) : '—'; }
+
+// ── export ────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const header = ['#','response_id','predicted_grade','sim_with_demotion','sim_no_demotion',
+                  'length_ratio','jaccard_unigram','keyword_coverage','jaccard_bigram'];
+  const rows = allGrades.map((g, i) => {
+    const f = g.features || {};
+    return [i+1, g.response_id, g.predicted_grade,
+            f.sim_with_demotion, f.sim_no_demotion, f.length_ratio,
+            f.jaccard_unigram, f.keyword_coverage, f.jaccard_bigram].join(',');
+  });
+  const csv  = [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a    = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob), download: `grades_${jobId}.csv`,
+  });
+  a.click();
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASAG — Grade Responses</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>ASAG</h1>
+  <span class="pill">Teacher</span>
+</header>
+
+<div class="container">
+
+  <!-- API Key -->
+  <div class="card" id="key-card">
+    <h2>API Key</h2>
+    <div class="row">
+      <div class="field" style="flex:2">
+        <label for="api-key">X-API-Key</label>
+        <input type="password" id="api-key" placeholder="dev-key">
+      </div>
+      <div class="field" style="flex:none;align-self:flex-end">
+        <button class="btn-primary" onclick="saveKey()">Save</button>
+      </div>
+    </div>
+    <div id="key-status" class="status-bar"></div>
+  </div>
+
+  <!-- Question -->
+  <div class="card">
+    <h2>Question</h2>
+    <div class="field">
+      <label>Use existing question</label>
+      <select id="question-select" onchange="onQuestionSelect()">
+        <option value="">— create new —</option>
+      </select>
+    </div>
+
+    <div id="new-question-form">
+      <div class="field">
+        <label for="q-text">Question text</label>
+        <input type="text" id="q-text" placeholder="e.g. What is photosynthesis?">
+      </div>
+      <div class="field">
+        <label for="q-ref">Reference / model answer</label>
+        <textarea id="q-ref" rows="3" placeholder="The ideal answer…"></textarea>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="q-subject">Subject (optional)</label>
+          <input type="text" id="q-subject" placeholder="e.g. Biology">
+        </div>
+        <div class="field" style="flex:none;align-self:flex-end">
+          <button class="btn-ghost" onclick="createQuestion()">+ Save question</button>
+        </div>
+      </div>
+    </div>
+    <div id="question-status" class="status-bar"></div>
+  </div>
+
+  <!-- Batch responses -->
+  <div class="card">
+    <h2>Student Responses</h2>
+    <div class="field">
+      <label for="responses">One response per line</label>
+      <textarea id="responses" rows="8" placeholder="Plants use sunlight to make food.&#10;Photosynthesis converts CO2 and water into glucose.&#10;Plants eat sunlight."></textarea>
+    </div>
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <span id="resp-count" style="font-size:.85rem;color:var(--muted)">0 responses</span>
+      <button class="btn-primary" id="submit-btn" onclick="submitBatch()">Grade all →</button>
+    </div>
+    <div id="batch-status" class="status-bar"></div>
+  </div>
+
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let selectedQuestionId = null;
+
+// ── key helpers ──────────────────────────────────────────────────────────────
+function apiKey() { return localStorage.getItem('asag_key') || 'dev-key'; }
+function headers() { return { 'Content-Type': 'application/json', 'X-API-Key': apiKey() }; }
+
+function saveKey() {
+  const k = document.getElementById('api-key').value.trim();
+  if (!k) return;
+  localStorage.setItem('asag_key', k);
+  setStatus('key-status', 'ok', 'Saved.');
+}
+
+function setStatus(id, cls, msg) {
+  const el = document.getElementById(id);
+  el.className = 'status-bar ' + cls;
+  el.textContent = msg;
+}
+
+// ── questions ────────────────────────────────────────────────────────────────
+async function loadQuestions() {
+  try {
+    const res = await fetch(API + '/questions', { headers: headers() });
+    if (!res.ok) return;
+    const qs = await res.json();
+    const sel = document.getElementById('question-select');
+    sel.innerHTML = '<option value="">— create new —</option>';
+    qs.forEach(q => {
+      const opt = document.createElement('option');
+      opt.value = q.id;
+      opt.textContent = q.text.slice(0, 80);
+      sel.appendChild(opt);
+    });
+  } catch (_) {}
+}
+
+function onQuestionSelect() {
+  const id = document.getElementById('question-select').value;
+  selectedQuestionId = id || null;
+  document.getElementById('new-question-form').style.display = id ? 'none' : 'block';
+}
+
+async function createQuestion() {
+  const text = document.getElementById('q-text').value.trim();
+  const ref  = document.getElementById('q-ref').value.trim();
+  const subj = document.getElementById('q-subject').value.trim();
+  if (!text || !ref) { setStatus('question-status', 'error', 'Question text and reference answer are required.'); return; }
+
+  const res = await fetch(API + '/questions', {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ text, reference_answer: ref, subject: subj }),
+  });
+  if (!res.ok) { setStatus('question-status', 'error', 'Failed to save question.'); return; }
+  const q = await res.json();
+  selectedQuestionId = q.id;
+  setStatus('question-status', 'ok', `Saved: "${q.text.slice(0, 60)}"`);
+  await loadQuestions();
+  document.getElementById('question-select').value = q.id;
+  onQuestionSelect();
+}
+
+// ── batch submit ─────────────────────────────────────────────────────────────
+document.getElementById('responses').addEventListener('input', function() {
+  const n = this.value.split('\n').filter(l => l.trim()).length;
+  document.getElementById('resp-count').textContent = n + ' response' + (n === 1 ? '' : 's');
+});
+
+async function submitBatch() {
+  if (!selectedQuestionId) { setStatus('batch-status', 'error', 'Select or create a question first.'); return; }
+  const lines = document.getElementById('responses').value.split('\n').filter(l => l.trim());
+  if (!lines.length) { setStatus('batch-status', 'error', 'Add at least one response.'); return; }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  setStatus('batch-status', 'info', 'Submitting…');
+
+  const res = await fetch(`${API}/questions/${selectedQuestionId}/batch`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ responses: lines }),
+  });
+
+  if (!res.ok) {
+    setStatus('batch-status', 'error', 'Batch submission failed.');
+    btn.disabled = false;
+    return;
+  }
+
+  const job = await res.json();
+  setStatus('batch-status', 'info', `Job ${job.id} — polling…`);
+
+  // poll until done
+  for (let i = 0; i < 60; i++) {
+    await sleep(1000);
+    const poll = await fetch(`${API}/jobs/${job.id}`, { headers: headers() });
+    const j = await poll.json();
+    if (j.status === 'done') {
+      window.location.href = `dashboard.html?job_id=${j.id}`;
+      return;
+    }
+    if (j.status === 'failed') {
+      setStatus('batch-status', 'error', 'Grading failed: ' + (j.error || 'unknown'));
+      btn.disabled = false;
+      return;
+    }
+  }
+  setStatus('batch-status', 'error', 'Timed out waiting for results.');
+  btn.disabled = false;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── init ─────────────────────────────────────────────────────────────────────
+document.getElementById('api-key').value = apiKey();
+loadQuestions();
+</script>
+</body>
+</html>
