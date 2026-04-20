@@ -10,3 +10,6 @@ wheels/
 .venv
 .claude
 .pytest_cache
+
+# JSON data store (runtime data, not source)
+data/
