@@ -17,6 +17,7 @@ class Question:
     reference_answer: str
     id: str = ""
     subject: str = ""
+    max_marks: float = 5.0
     created_at: str = field(default_factory=_now)
 
     def to_dict(self) -> dict:
@@ -76,6 +77,23 @@ class Job:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Job":
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class Submission:
+    question_id: str
+    student_name: str
+    roll_number: str
+    answer: str
+    id: str = ""
+    submitted_at: str = field(default_factory=_now)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Submission":
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
 

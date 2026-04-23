@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASAG — Exam</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .exam-wrap { max-width: 700px; margin: 2rem auto; padding: 0 1.5rem; }
+    .student-badge { background: var(--bg); border: 1px solid var(--border);
+      border-radius: 99px; padding: 4px 14px; font-size: .85rem; color: var(--muted); }
+    .progress-bar-wrap { background: var(--border); border-radius: 99px; height: 6px; margin-bottom: 1.5rem; }
+    .progress-bar { background: var(--accent); border-radius: 99px; height: 6px; transition: width .3s; }
+    .q-number { font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: .5rem; letter-spacing: .05em; text-transform: uppercase; }
+    .q-text { font-size: 1.15rem; font-weight: 600; line-height: 1.5; margin-bottom: 1.5rem; }
+    .nav-row { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; gap: .5rem; }
+    .q-nav { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.5rem; }
+    .q-dot { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border);
+      background: var(--surface); font-size: .8rem; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all .15s; }
+    .q-dot.answered  { background: #e6f4ea; border-color: #1e7e34; color: #1e7e34; }
+    .q-dot.current   { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .q-dot:hover:not(.current) { border-color: var(--accent); }
+    .submitted-screen { text-align: center; padding: 3rem 1.5rem; }
+    .submitted-screen .big { font-size: 3rem; margin-bottom: 1rem; }
+    .submitted-screen h2 { font-size: 1.4rem; margin-bottom: .5rem; }
+    .submitted-screen p { color: var(--muted); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>ASAG</h1>
+  <span class="pill">Exam</span>
+  <div style="margin-left:auto" id="student-badge"></div>
+</header>
+
+<div class="exam-wrap">
+  <div id="loading" class="status-bar info">Loading questions…</div>
+  <div id="error"   class="status-bar error" style="display:none"></div>
+
+  <!-- submitted -->
+  <div id="submitted" style="display:none">
+    <div class="card submitted-screen">
+      <div class="big">&#10003;</div>
+      <h2>Answers submitted!</h2>
+      <p>Your responses have been recorded. You may close this window.</p>
+    </div>
+  </div>
+
+  <!-- exam -->
+  <div id="exam" style="display:none">
+
+    <!-- question nav dots -->
+    <div class="card" style="padding:1rem 1.2rem">
+      <div style="font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.05em">Questions</div>
+      <div class="q-nav" id="q-nav"></div>
+    </div>
+
+    <!-- question card -->
+    <div class="card">
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progress"></div></div>
+      <div class="q-number" id="q-number"></div>
+      <div class="q-text"   id="q-text"></div>
+      <div class="field">
+        <label for="answer">Your answer</label>
+        <textarea id="answer" rows="6" placeholder="Type your answer here…" oninput="saveAnswer()"></textarea>
+      </div>
+      <div class="nav-row">
+        <button class="btn-ghost" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+        <span id="q-counter" style="font-size:.85rem;color:var(--muted)"></span>
+        <button class="btn-primary" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+      </div>
+    </div>
+
+    <!-- submit -->
+    <div class="card" style="text-align:center;padding:1.2rem">
+      <div id="submit-status" class="status-bar" style="margin-bottom:.5rem"></div>
+      <button class="btn-primary" id="submit-btn" onclick="submitAll()"
+              style="background:#1e7e34;min-width:180px">Submit all answers</button>
+      <p style="font-size:.8rem;color:var(--muted);margin-top:.5rem">
+        Answered: <span id="answered-count">0</span> / <span id="total-count">0</span>
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API    = '/';
+const NAME   = localStorage.getItem('asag_student_name') || '';
+const ROLL   = localStorage.getItem('asag_student_roll') || '';
+const STORE_KEY = 'asag_answers_' + ROLL;
+
+let questions = [];
+let current   = 0;
+let answers   = {};  // question_id → answer text
+
+// ── init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  if (!NAME || !ROLL) { location.href = '../login.html'; return; }
+
+  document.getElementById('student-badge').innerHTML =
+    `<span class="student-badge">${esc(NAME)} &nbsp;|&nbsp; ${esc(ROLL)}</span>`;
+
+  // restore saved answers
+  try { answers = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { answers = {}; }
+
+  const res = await fetch(API + 'questions').catch(() => null);
+  if (!res || !res.ok) { showError('Could not load questions.'); return; }
+  questions = await res.json();
+  if (!questions.length) { showError('No questions available yet.'); return; }
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('exam').style.display    = 'block';
+  document.getElementById('total-count').textContent = questions.length;
+
+  buildNav();
+  showQuestion(0);
+}
+
+// ── navigation ────────────────────────────────────────────────────────────────
+function buildNav() {
+  const nav = document.getElementById('q-nav');
+  nav.innerHTML = questions.map((q, i) => {
+    const answered = !!(answers[q.id] || '').trim();
+    return `<div class="q-dot ${answered ? 'answered' : ''}" id="dot-${i}"
+                 onclick="navigate(${i} - current)" title="${esc(q.text.slice(0,60))}">${i+1}</div>`;
+  }).join('');
+}
+
+function showQuestion(idx) {
+  current = Math.max(0, Math.min(idx, questions.length - 1));
+  const q = questions[current];
+
+  document.getElementById('q-number').textContent =
+    `Question ${current + 1} of ${questions.length}` + (q.subject ? ` — ${q.subject}` : '');
+  document.getElementById('q-text').textContent   = q.text;
+  document.getElementById('q-counter').textContent = `${current + 1} / ${questions.length}`;
+  document.getElementById('answer').value         = answers[q.id] || '';
+  document.getElementById('progress').style.width = ((current+1)/questions.length*100) + '%';
+
+  document.getElementById('prev-btn').disabled = current === 0;
+  document.getElementById('next-btn').disabled = current === questions.length - 1;
+  document.getElementById('next-btn').textContent =
+    current === questions.length - 1 ? 'Last question' : 'Next →';
+
+  // update dots
+  questions.forEach((_, i) => {
+    const dot = document.getElementById('dot-' + i);
+    if (!dot) return;
+    const answered = !!(answers[questions[i].id] || '').trim();
+    dot.className = 'q-dot' + (answered ? ' answered' : '') + (i === current ? ' current' : '');
+  });
+
+  updateAnsweredCount();
+  document.getElementById('answer').focus();
+}
+
+function navigate(delta) {
+  showQuestion(current + delta);
+}
+
+function saveAnswer() {
+  const q = questions[current];
+  answers[q.id] = document.getElementById('answer').value;
+  localStorage.setItem(STORE_KEY, JSON.stringify(answers));
+  const dot = document.getElementById('dot-' + current);
+  if (dot) {
+    const answered = !!(answers[q.id] || '').trim();
+    dot.className = 'q-dot current' + (answered ? ' answered' : '');
+  }
+  updateAnsweredCount();
+}
+
+function updateAnsweredCount() {
+  const n = questions.filter(q => (answers[q.id] || '').trim()).length;
+  document.getElementById('answered-count').textContent = n;
+}
+
+// ── submit ────────────────────────────────────────────────────────────────────
+async function submitAll() {
+  const unanswered = questions.filter(q => !(answers[q.id] || '').trim());
+  if (unanswered.length) {
+    const ok = confirm(`${unanswered.length} question(s) unanswered. Submit anyway?`);
+    if (!ok) return;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  setSubmitStatus('info', 'Submitting…');
+
+  let ok = 0;
+  for (const q of questions) {
+    const answer = (answers[q.id] || '').trim();
+    const body   = { question_id: q.id, student_name: NAME, roll_number: ROLL, answer };
+    const res    = await fetch(API + 'submissions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) ok++;
+  }
+
+  if (ok === 0) { setSubmitStatus('error', 'Submission failed. Try again.'); btn.disabled = false; return; }
+
+  // clear saved answers
+  localStorage.removeItem(STORE_KEY);
+
+  document.getElementById('exam').style.display      = 'none';
+  document.getElementById('submitted').style.display = 'block';
+}
+
+function setSubmitStatus(cls, msg) {
+  const el = document.getElementById('submit-status');
+  el.className = 'status-bar ' + cls;
+  el.textContent = msg;
+}
+
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  const el = document.getElementById('error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+init();
+</script>
+</body>
+</html>

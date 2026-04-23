@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASAG — Student Detail</title>
+  <link rel="stylesheet" href="../style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    nav a { color:var(--muted); font-size:.9rem; padding:.2rem .5rem; border-radius:4px; }
+    nav a:hover { color:var(--accent); background:#eef1ff; text-decoration:none; }
+    nav { display:flex; gap:.25rem; margin-left:auto; }
+    .chart-wrap { position:relative; height:320px; }
+    .answer-cell { max-width:380px; font-size:.85rem; color:var(--muted); line-height:1.4; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>ASAG</h1>
+  <span class="pill">Teacher</span>
+  <nav>
+    <a href="questions.html">Questions</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="dashboard-questions.html">Per Question</a>
+    <a href="../login.html" onclick="logout()">Logout</a>
+  </nav>
+</header>
+
+<div class="container">
+  <a class="back-link" href="dashboard.html">&#8592; Back to Dashboard</a>
+
+  <div id="error" class="status-bar error" style="display:none"></div>
+
+  <!-- Student header -->
+  <div class="card" id="student-header" style="display:none">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div style="flex:1">
+        <h2 id="student-name" style="margin:0;font-size:1.3rem"></h2>
+        <p id="student-roll" style="color:var(--muted);font-size:.9rem;margin-top:.2rem"></p>
+      </div>
+      <button class="btn-ghost" onclick="exportCSV()">&#8595; Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="stats" style="display:none">
+    <div class="stat"><div class="val" id="s-total">—</div><div class="lbl">Total marks</div></div>
+    <div class="stat"><div class="val" id="s-max">—</div><div class="lbl">Out of</div></div>
+    <div class="stat"><div class="val" id="s-pct">—</div><div class="lbl">Percentage</div></div>
+    <div class="stat"><div class="val" id="s-rank">—</div><div class="lbl">Rank</div></div>
+  </div>
+
+  <!-- Per-question bar chart -->
+  <div class="card" id="chart-card" style="display:none">
+    <h2>Score per Question</h2>
+    <div class="chart-wrap"><canvas id="bar-chart"></canvas></div>
+  </div>
+
+  <!-- Per-question table -->
+  <div class="card" id="table-card" style="display:none">
+    <h2>Question Breakdown</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Question</th><th>Answer</th><th>Grade</th><th>/ Max</th><th>%</th>
+        </tr></thead>
+        <tbody id="q-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let studentData = null;
+let summary     = null;
+
+function logout() { localStorage.removeItem('asag_key'); }
+function esc(s)   { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function init() {
+  if (!localStorage.getItem('asag_key')) { location.href='../login.html'; return; }
+
+  const cached = localStorage.getItem('asag_grade_summary');
+  if (!cached) { showError('No grading data found. Go to Dashboard and click "Grade All" first.'); return; }
+
+  summary = JSON.parse(cached);
+  const roll = decodeURIComponent(new URLSearchParams(location.search).get('roll') || '');
+  if (!roll) { showError('No student roll number specified.'); return; }
+
+  studentData = summary.students[roll];
+  if (!studentData) { showError(`Student "${roll}" not found in grading data.`); return; }
+
+  render();
+}
+
+function render() {
+  const st       = studentData;
+  const totalMax = summary.questions.reduce((s,q) => s + q.max_marks, 0);
+  const total    = summary.questions.reduce((s,q) => s + (st.grades[q.id]?.grade ?? 0), 0);
+  const pct      = Math.round(total / totalMax * 100);
+
+  // rank
+  const allTotals = Object.values(summary.students)
+    .map(s => summary.questions.reduce((acc,q) => acc + (s.grades[q.id]?.grade ?? 0), 0))
+    .sort((a,b) => b-a);
+  const rank = allTotals.findIndex(t => t <= total) + 1;
+
+  // header
+  document.getElementById('student-name').textContent = st.name;
+  document.getElementById('student-roll').textContent = st.roll;
+  document.title = `ASAG — ${st.name}`;
+
+  // stats
+  document.getElementById('s-total').textContent = total.toFixed(1);
+  document.getElementById('s-max').textContent   = totalMax;
+  document.getElementById('s-pct').textContent   = pct + '%';
+  document.getElementById('s-rank').textContent  = `${rank} / ${Object.keys(summary.students).length}`;
+
+  renderChart(st, totalMax);
+  renderTable(st);
+
+  ['student-header','stats','chart-card','table-card'].forEach(id =>
+    document.getElementById(id).style.display = id === 'stats' ? 'flex' : 'block');
+}
+
+function renderChart(st, totalMax) {
+  const labels = summary.questions.map((q,i) => `Q${i+1}`);
+  const data   = summary.questions.map(q => {
+    const g = st.grades[q.id];
+    return g ? Math.round(g.grade / q.max_marks * 100) : 0;
+  });
+  const colors = data.map(v => v>=60?'rgba(102,187,106,.8)':v>=40?'rgba(253,216,53,.8)':'rgba(229,57,53,.8)');
+  const tooltips = summary.questions.map(q => q.text.slice(0,60));
+
+  new Chart(document.getElementById('bar-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets:[{
+        label:'Score %', data, backgroundColor:colors,
+        borderRadius:6, borderSkipped:false,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{ callbacks:{
+          title: ctx => tooltips[ctx[0].dataIndex],
+          label: ctx => ` ${ctx.parsed.x}%`,
+        }},
+      },
+      scales:{
+        x:{ beginAtZero:true, max:100, ticks:{callback:v=>v+'%'},
+            grid:{color:'#f0f0f0'}, title:{display:true,text:'Score %'} },
+        y:{ grid:{display:false} },
+      },
+    },
+  });
+}
+
+function renderTable(st) {
+  document.getElementById('q-body').innerHTML = summary.questions.map((q, i) => {
+    const g   = st.grades[q.id];
+    const grade = g?.grade ?? null;
+    const pct   = grade !== null ? Math.round(grade / q.max_marks * 100) : null;
+    const cls   = pct === null ? '' : pct>=60?'grade-high':pct>=40?'grade-mid':'grade-low';
+    return `<tr>
+      <td>Q${i+1}</td>
+      <td style="max-width:200px;font-size:.88rem">${esc(q.text.slice(0,80))}${q.text.length>80?'…':''}</td>
+      <td class="answer-cell">${esc(g?.answer ?? '—')}</td>
+      <td>${grade!==null ? `<span class="grade-badge ${cls}">${grade.toFixed(2)}</span>` : '—'}</td>
+      <td>${q.max_marks}</td>
+      <td>${pct !== null ? pct+'%' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCSV() {
+  const st       = studentData;
+  const totalMax = summary.questions.reduce((s,q)=>s+q.max_marks,0);
+  const total    = summary.questions.reduce((s,q)=>s+(st.grades[q.id]?.grade??0),0);
+  const header   = ['question','grade','max_marks','percentage','answer'];
+  const rows     = summary.questions.map((q,i) => {
+    const g   = st.grades[q.id];
+    const pct = g ? Math.round(g.grade/q.max_marks*100)+'%' : '—';
+    return [`"Q${i+1}: ${q.text.replace(/"/g,'""').slice(0,60)}"`,
+            g?.grade??'', q.max_marks, pct,
+            `"${(g?.answer??'').replace(/"/g,'""')}"`].join(',');
+  });
+  const summary_row = [`"TOTAL"`,total.toFixed(2),totalMax,
+                       Math.round(total/totalMax*100)+'%',''].join(',');
+  const blob = new Blob([[header.join(','),...rows,summary_row].join('\n')],{type:'text/csv'});
+  Object.assign(document.createElement('a'),
+    {href:URL.createObjectURL(blob),download:`${st.roll}_grades.csv`}).click();
+}
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+init();
+</script>
+</body>
+</html>

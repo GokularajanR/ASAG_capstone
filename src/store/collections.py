@@ -53,6 +53,17 @@ class JobStore(JsonStore):
         return self.update(id, patch)
 
 
+class SubmissionStore(JsonStore):
+    def __init__(self, path: Path | str = _DATA / "submissions.json") -> None:
+        super().__init__(path)
+
+    def find_by_question(self, question_id: str) -> list[dict]:
+        return self.find(question_id=question_id)
+
+    def find_by_student(self, roll_number: str) -> list[dict]:
+        return self.find(roll_number=roll_number)
+
+
 class UserStore(JsonStore):
     def __init__(self, path: Path | str = _DATA / "users.json") -> None:
         super().__init__(path)

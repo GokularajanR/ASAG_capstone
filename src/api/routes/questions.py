@@ -1,4 +1,4 @@
-"""GET|POST /questions, GET /questions/{id}"""
+"""GET|POST /questions, GET /questions/{id}, DELETE /questions/{id}"""
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -7,10 +7,12 @@ from src.api.deps import get_question_store
 from src.api.models import QuestionIn, QuestionOut
 from src.store.collections import QuestionStore
 
-router = APIRouter(prefix="/questions", dependencies=[Depends(require_api_key)])
+# GET routes are public (students need questions); write routes require auth
+router = APIRouter(prefix="/questions")
 
 
-@router.post("", response_model=QuestionOut, status_code=201)
+@router.post("", response_model=QuestionOut, status_code=201,
+             dependencies=[Depends(require_api_key)])
 def create_question(body: QuestionIn, store: QuestionStore = Depends(get_question_store)):
     record = store.insert(body.model_dump())
     return record
@@ -27,3 +29,10 @@ def get_question(question_id: str, store: QuestionStore = Depends(get_question_s
     if not record:
         raise HTTPException(status_code=404, detail="Question not found.")
     return record
+
+
+@router.delete("/{question_id}", status_code=204,
+               dependencies=[Depends(require_api_key)])
+def delete_question(question_id: str, store: QuestionStore = Depends(get_question_store)):
+    if not store.delete(question_id):
+        raise HTTPException(status_code=404, detail="Question not found.")

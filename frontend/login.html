@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASAG — Login</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { display: flex; flex-direction: column; min-height: 100vh; }
+    .login-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+    .login-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 720px; width: 100%; }
+    .role-card { border: 2px solid var(--border); border-radius: 12px; padding: 2rem; background: var(--surface); text-align: center; }
+    .role-card h2 { font-size: 1.2rem; margin-bottom: .4rem; }
+    .role-card .subtitle { color: var(--muted); font-size: .85rem; margin-bottom: 1.5rem; }
+    .role-icon { font-size: 2.5rem; margin-bottom: .75rem; }
+    .role-card .field { text-align: left; }
+    .role-card button { width: 100%; justify-content: center; margin-top: .5rem; }
+    @media (max-width: 560px) { .login-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<header>
+  <h1>ASAG</h1>
+  <span class="pill">Automated Short Answer Grading</span>
+</header>
+
+<div class="login-wrap">
+  <div class="login-grid">
+
+    <!-- Teacher -->
+    <div class="role-card">
+      <div class="role-icon">&#128203;</div>
+      <h2>Teacher</h2>
+      <p class="subtitle">Manage questions, view grades and distributions</p>
+      <div class="field">
+        <label for="api-key">API Key</label>
+        <input type="password" id="api-key" placeholder="dev-key" value="dev-key">
+      </div>
+      <div id="teacher-err" class="status-bar error" style="margin-top:.5rem"></div>
+      <button class="btn-primary" onclick="teacherLogin()">Enter Dashboard &rarr;</button>
+    </div>
+
+    <!-- Student -->
+    <div class="role-card">
+      <div class="role-icon">&#128221;</div>
+      <h2>Student</h2>
+      <p class="subtitle">Answer questions and submit your responses</p>
+      <div class="field">
+        <label for="s-name">Full Name</label>
+        <input type="text" id="s-name" placeholder="Jane Doe">
+      </div>
+      <div class="field" style="margin-top:.75rem">
+        <label for="s-roll">Roll Number</label>
+        <input type="text" id="s-roll" placeholder="CS2024001">
+      </div>
+      <div id="student-err" class="status-bar error" style="margin-top:.5rem"></div>
+      <button class="btn-primary" onclick="studentLogin()">Start Exam &rarr;</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+async function teacherLogin() {
+  const key = document.getElementById('api-key').value.trim();
+  if (!key) { showErr('teacher-err', 'Enter your API key.'); return; }
+  const res = await fetch('/questions', { headers: { 'X-API-Key': key } }).catch(() => null);
+  if (!res || res.status === 403) { showErr('teacher-err', 'Invalid API key.'); return; }
+  localStorage.setItem('asag_key', key);
+  location.href = 'teacher/questions.html';
+}
+
+function studentLogin() {
+  const name = document.getElementById('s-name').value.trim();
+  const roll = document.getElementById('s-roll').value.trim();
+  if (!name) { showErr('student-err', 'Enter your name.'); return; }
+  if (!roll) { showErr('student-err', 'Enter your roll number.'); return; }
+  localStorage.setItem('asag_student_name', name);
+  localStorage.setItem('asag_student_roll', roll);
+  location.href = 'student/exam.html';
+}
+
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// Pre-fill stored key
+const k = localStorage.getItem('asag_key');
+if (k) document.getElementById('api-key').value = k;
+</script>
+</body>
+</html>

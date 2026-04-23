@@ -1,0 +1,66 @@
+{
+  "title": "Middle School Physics Quiz",
+  "subject": "Physics",
+  "questions": [
+    {
+      "text": "What is gravity?",
+      "reference_answer": "Gravity is a force that pulls objects toward each other. On Earth, gravity pulls all objects downward toward the center of the Earth.",
+      "subject": "Physics",
+      "max_marks": 2
+    },
+    {
+      "text": "What is the difference between mass and weight?",
+      "reference_answer": "Mass is the amount of matter in an object and stays the same everywhere. Weight is the force of gravity acting on an object and can change depending on the strength of gravity.",
+      "subject": "Physics",
+      "max_marks": 3
+    },
+    {
+      "text": "What is friction and give one example of where it is useful?",
+      "reference_answer": "Friction is a force that opposes motion between two surfaces in contact. It is useful in brakes, which use friction to slow down or stop a moving vehicle.",
+      "subject": "Physics",
+      "max_marks": 3
+    },
+    {
+      "text": "State Newton's First Law of Motion.",
+      "reference_answer": "Newton's First Law states that an object at rest stays at rest and an object in motion stays in motion at the same speed and direction unless acted upon by an unbalanced force.",
+      "subject": "Physics",
+      "max_marks": 2
+    },
+    {
+      "text": "What is the difference between speed and velocity?",
+      "reference_answer": "Speed is how fast an object moves and has no direction. Velocity is speed in a specific direction, making it a vector quantity. For example, 60 km/h is speed, while 60 km/h north is velocity.",
+      "subject": "Physics",
+      "max_marks": 3
+    },
+    {
+      "text": "Explain the difference between potential energy and kinetic energy and give one example of each.",
+      "reference_answer": "Potential energy is stored energy due to an object's position or condition. Kinetic energy is the energy of motion. A rock held at the top of a hill has potential energy. When it rolls down, that potential energy converts to kinetic energy.",
+      "subject": "Physics",
+      "max_marks": 4
+    },
+    {
+      "text": "How does a simple lever work? Describe its three parts.",
+      "reference_answer": "A lever is a simple machine that makes lifting easier. It has three parts: the fulcrum, which is the pivot point; the effort, which is the force applied; and the load, which is the object being moved. By placing the fulcrum closer to the load, less effort is needed to lift it.",
+      "subject": "Physics",
+      "max_marks": 4
+    },
+    {
+      "text": "What is an electric circuit and what are the essential components needed to make one work?",
+      "reference_answer": "An electric circuit is a closed path through which electric current flows. The essential components are a power source such as a battery, conducting wires to carry the current, and a load such as a light bulb that uses the electrical energy. The circuit must be closed for current to flow.",
+      "subject": "Physics",
+      "max_marks": 4
+    },
+    {
+      "text": "Explain what magnets are, describe the two poles, and state the rule for attraction and repulsion.",
+      "reference_answer": "A magnet is an object that produces a magnetic field and attracts iron and steel. Every magnet has two poles: the north pole and the south pole. Opposite poles attract each other, so north attracts south. Like poles repel each other, so north repels north and south repels south.",
+      "subject": "Physics",
+      "max_marks": 4
+    },
+    {
+      "text": "Using Newton's Second Law, explain the relationship between force, mass, and acceleration. Include the formula and a worked example.",
+      "reference_answer": "Newton's Second Law states that force equals mass multiplied by acceleration, written as F = ma. A greater force produces greater acceleration, and a greater mass requires more force to achieve the same acceleration. For example, if a 5 kg object is pushed with a force of 20 N, its acceleration is 20 divided by 5, which equals 4 metres per second squared.",
+      "subject": "Physics",
+      "max_marks": 5
+    }
+  ]
+}

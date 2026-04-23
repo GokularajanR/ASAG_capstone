@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ASAG — Dashboard</title>
+  <link rel="stylesheet" href="../style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <style>
+    nav a { color:var(--muted); font-size:.9rem; padding:.2rem .5rem; border-radius:4px; }
+    nav a.active, nav a:hover { color:var(--accent); background:#eef1ff; text-decoration:none; }
+    nav { display:flex; gap:.25rem; margin-left:auto; }
+    .chart-wrap { position:relative; height:260px; }
+    .grading-progress { font-size:.85rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>ASAG</h1>
+  <span class="pill">Teacher</span>
+  <nav>
+    <a href="questions.html">Questions</a>
+    <a href="dashboard.html" class="active">Dashboard</a>
+    <a href="dashboard-questions.html">Per Question</a>
+    <a href="../login.html" onclick="logout()">Logout</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <!-- Grade all control -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+      <div>
+        <h2 style="margin:0">Overall Results</h2>
+        <p class="grading-progress" id="last-graded"></p>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:center">
+        <button class="btn-ghost" id="export-btn" onclick="exportCSV()" style="display:none">&#8595; Export CSV</button>
+        <button class="btn-primary" id="grade-btn" onclick="gradeAll()">Grade All Questions</button>
+      </div>
+    </div>
+    <div id="grade-status" class="status-bar" style="margin-top:.75rem"></div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="stats" style="display:none">
+    <div class="stat"><div class="val" id="s-students">—</div><div class="lbl">Students</div></div>
+    <div class="stat"><div class="val" id="s-mean">—</div><div class="lbl">Mean total</div></div>
+    <div class="stat"><div class="val" id="s-median">—</div><div class="lbl">Median total</div></div>
+    <div class="stat"><div class="val" id="s-pass">—</div><div class="lbl">Pass rate (≥60%)</div></div>
+  </div>
+
+  <!-- Chart -->
+  <div class="card" id="chart-card" style="display:none">
+    <h2>Total Mark Distribution</h2>
+    <div class="chart-wrap"><canvas id="dist-chart"></canvas></div>
+  </div>
+
+  <!-- Student table -->
+  <div class="card" id="table-card" style="display:none">
+    <h2>Student Results</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Rank</th><th>Name</th><th>Roll No.</th>
+          <th>Total</th><th>/ Max</th><th>%</th><th></th>
+        </tr></thead>
+        <tbody id="result-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '/';
+function key()  { return localStorage.getItem('asag_key') || ''; }
+function auth() { return { 'Content-Type':'application/json', 'X-API-Key': key() }; }
+function logout() { localStorage.removeItem('asag_key'); }
+
+let chartInst = null;
+let summary   = null;
+
+// ── init ──────────────────────────────────────────────────────────────────────
+function init() {
+  if (!key()) { location.href = '../login.html'; return; }
+  const cached = localStorage.getItem('asag_grade_summary');
+  if (cached) {
+    summary = JSON.parse(cached);
+    const d = new Date(summary.graded_at);
+    document.getElementById('last-graded').textContent =
+      'Last graded: ' + d.toLocaleString();
+    render();
+  }
+}
+
+// ── grade all ─────────────────────────────────────────────────────────────────
+async function gradeAll() {
+  const btn = document.getElementById('grade-btn');
+  btn.disabled = true;
+  setStatus('info', 'Fetching questions…');
+
+  const questions = await get('questions');
+  if (!questions.length) { setStatus('error', 'No questions found.'); btn.disabled=false; return; }
+
+  const newSummary = { graded_at: new Date().toISOString(), questions: [], students: {} };
+
+  for (let qi = 0; qi < questions.length; qi++) {
+    const q = questions[qi];
+    setStatus('info', `Grading question ${qi+1} / ${questions.length}: "${q.text.slice(0,50)}…"`);
+
+    const subs = await get(`submissions?question_id=${q.id}`);
+    if (!subs.length) continue;
+
+    // batch grade
+    const jobRes = await post(`questions/${q.id}/batch`, {
+      responses:   subs.map(s => s.answer),
+      student_ids: subs.map(s => s.roll_number),
+    });
+    const grades = await pollJob(jobRes.id);
+    if (!grades) { setStatus('error', `Grading failed on question ${qi+1}.`); btn.disabled=false; return; }
+
+    newSummary.questions.push({ id:q.id, text:q.text, subject:q.subject, max_marks:q.max_marks });
+
+    subs.forEach((sub, i) => {
+      if (!newSummary.students[sub.roll_number]) {
+        newSummary.students[sub.roll_number] = {
+          name: sub.student_name, roll: sub.roll_number, grades: {}
+        };
+      }
+      newSummary.students[sub.roll_number].grades[q.id] = {
+        grade:    grades[i]?.predicted_grade ?? 0,
+        answer:   sub.answer,
+        features: grades[i]?.features ?? {},
+      };
+    });
+  }
+
+  summary = newSummary;
+  localStorage.setItem('asag_grade_summary', JSON.stringify(summary));
+  document.getElementById('last-graded').textContent =
+    'Last graded: ' + new Date(summary.graded_at).toLocaleString();
+  btn.disabled = false;
+  setStatus('ok', 'All questions graded.');
+  render();
+}
+
+async function pollJob(jobId) {
+  for (let i = 0; i < 90; i++) {
+    await sleep(800);
+    const j = await get(`jobs/${jobId}`);
+    if (j.status === 'done')   return j.grades;
+    if (j.status === 'failed') return null;
+  }
+  return null;
+}
+
+// ── render ────────────────────────────────────────────────────────────────────
+function render() {
+  const students = Object.values(summary.students);
+  const totalMax = summary.questions.reduce((s, q) => s + q.max_marks, 0);
+
+  // compute totals
+  const rows = students.map(st => {
+    const total = summary.questions.reduce((s, q) => s + (st.grades[q.id]?.grade ?? 0), 0);
+    return { ...st, total: Math.round(total * 100) / 100 };
+  }).sort((a, b) => b.total - a.total);
+
+  renderStats(rows, totalMax);
+  renderChart(rows, totalMax);
+  renderTable(rows, totalMax);
+
+  ['stats','chart-card','table-card'].forEach(id =>
+    document.getElementById(id).style.display = id === 'stats' ? 'flex' : 'block');
+  document.getElementById('export-btn').style.display = 'inline-flex';
+}
+
+function renderStats(rows, totalMax) {
+  const vals = rows.map(r => r.total).sort((a,b) => a-b);
+  const n    = vals.length;
+  const mean = vals.reduce((s,v)=>s+v,0) / n;
+  const med  = n%2 ? vals[Math.floor(n/2)] : (vals[n/2-1]+vals[n/2])/2;
+  const pass = vals.filter(v => v/totalMax >= 0.6).length;
+  document.getElementById('s-students').textContent = n;
+  document.getElementById('s-mean').textContent     = mean.toFixed(1);
+  document.getElementById('s-median').textContent   = med.toFixed(1);
+  document.getElementById('s-pass').textContent     = Math.round(pass/n*100) + '%';
+}
+
+function renderChart(rows, totalMax) {
+  const labels = ['0–20%','20–40%','40–60%','60–80%','80–100%'];
+  const counts = Array(5).fill(0);
+  rows.forEach(r => {
+    const pct = r.total / totalMax;
+    counts[Math.min(Math.floor(pct * 5), 4)]++;
+  });
+  const colors = ['rgba(229,57,53,.75)','rgba(251,140,0,.75)',
+                  'rgba(253,216,53,.75)','rgba(102,187,106,.75)','rgba(66,165,245,.75)'];
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(document.getElementById('dist-chart'), {
+    type: 'bar',
+    data: { labels, datasets:[{ label:'Students', data:counts,
+      backgroundColor:colors, borderRadius:6, borderSkipped:false }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        y:{ beginAtZero:true, ticks:{stepSize:1,precision:0}, grid:{color:'#f0f0f0'},
+            title:{display:true,text:'Students'} },
+        x:{ grid:{display:false}, title:{display:true,text:'Total score band'} },
+      },
+    },
+  });
+}
+
+function renderTable(rows, totalMax) {
+  document.getElementById('result-body').innerHTML = rows.map((r, i) => {
+    const pct = Math.round(r.total / totalMax * 100);
+    const cls = pct >= 60 ? 'grade-high' : pct >= 40 ? 'grade-mid' : 'grade-low';
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.roll)}</td>
+      <td><strong>${r.total}</strong></td>
+      <td>${totalMax}</td>
+      <td><span class="grade-badge ${cls}">${pct}%</span></td>
+      <td><a href="dashboard-student.html?roll=${encodeURIComponent(r.roll)}">Detail &rarr;</a></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── export ─────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const totalMax = summary.questions.reduce((s,q)=>s+q.max_marks,0);
+  const qHeaders = summary.questions.map(q => `"${q.text.slice(0,30).replace(/"/g,'""')}"`);
+  const header   = ['name','roll_number','total','total_possible','percentage',...qHeaders];
+
+  const rows = Object.values(summary.students).map(st => {
+    const total  = summary.questions.reduce((s,q)=>s+(st.grades[q.id]?.grade??0),0);
+    const qGrades = summary.questions.map(q => (st.grades[q.id]?.grade??'').toString());
+    return [st.name, st.roll, total.toFixed(2), totalMax,
+            Math.round(total/totalMax*100)+'%', ...qGrades].join(',');
+  });
+
+  const blob = new Blob([[header.join(','),...rows].join('\n')], {type:'text/csv'});
+  Object.assign(document.createElement('a'),
+    {href:URL.createObjectURL(blob), download:'results.csv'}).click();
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+async function get(path) {
+  const r = await fetch(API + path, { headers: auth() });
+  return r.json();
+}
+async function post(path, body) {
+  const r = await fetch(API + path, { method:'POST', headers:auth(), body:JSON.stringify(body) });
+  return r.json();
+}
+function setStatus(cls, msg) {
+  const el = document.getElementById('grade-status');
+  el.className = 'status-bar ' + cls; el.textContent = msg;
+}
+function esc(s) {
+  return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+init();
+</script>
+</body>
+</html>

@@ -19,12 +19,20 @@ class QuestionIn(BaseModel):
     text: str
     reference_answer: str
     subject: str = ""
+    max_marks: float = 5.0
 
 
 class BatchRequest(BaseModel):
     responses: list[str]
     student_ids: list[str] = Field(default_factory=list)
     strictness: int = 20
+
+
+class SubmissionIn(BaseModel):
+    question_id: str
+    student_name: str
+    roll_number: str
+    answer: str
 
 
 class UserIn(BaseModel):
@@ -44,8 +52,18 @@ class QuestionOut(BaseModel):
     id: str
     text: str
     reference_answer: str
-    subject: str
+    subject: str = ""
+    max_marks: float = 5.0
     created_at: str
+
+
+class SubmissionOut(BaseModel):
+    id: str
+    question_id: str
+    student_name: str
+    roll_number: str
+    answer: str
+    submitted_at: str
 
 
 class JobOut(BaseModel):

@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 load_dotenv()
 
 from src.grade_mapper import GradeMapper
-from src.api.routes import grade, jobs, questions, users
+from src.api.routes import grade, jobs, questions, submissions, users
 
 MODEL_PATH = Path(os.getenv("MODEL_PATH", "grade_mapper.joblib"))
 FRONTEND_DIR = (Path(__file__).parent.parent.parent / "frontend").resolve()
@@ -37,6 +37,7 @@ app.add_middleware(
 
 app.include_router(grade.router)
 app.include_router(questions.router)
+app.include_router(submissions.router)
 app.include_router(jobs.router)
 app.include_router(users.router)
 
