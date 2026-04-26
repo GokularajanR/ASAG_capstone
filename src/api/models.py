@@ -13,6 +13,7 @@ class GradeRequest(BaseModel):
     response: str
     corpus: list[str] = Field(default_factory=list)
     strictness: int = 20
+    max_marks: float = 5.0
 
 
 class QuestionIn(BaseModel):

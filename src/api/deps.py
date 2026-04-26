@@ -13,6 +13,10 @@ def get_mapper(request: Request):
     return request.app.state.mapper
 
 
+def get_embedding_backend(request: Request):
+    return request.app.state.embedding_backend
+
+
 def get_question_store() -> QuestionStore:
     return QuestionStore()
 

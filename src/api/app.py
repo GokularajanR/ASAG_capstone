@@ -13,16 +13,19 @@ from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
 
+from src.embeddings import get_backend
 from src.grade_mapper import GradeMapper
 from src.api.routes import grade, jobs, questions, submissions, users
 
-MODEL_PATH = Path(os.getenv("MODEL_PATH", "grade_mapper.joblib"))
+MODEL_PATH  = Path(os.getenv("MODEL_PATH",  "grade_mapper.joblib"))
+EMBED_MODEL = os.getenv("EMBED_MODEL", "null")
 FRONTEND_DIR = (Path(__file__).parent.parent.parent / "frontend").resolve()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.mapper = GradeMapper.load(MODEL_PATH)
+    app.state.mapper            = GradeMapper.load(MODEL_PATH)
+    app.state.embedding_backend = get_backend(EMBED_MODEL)
     yield
 
 

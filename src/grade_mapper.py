@@ -9,6 +9,13 @@ from sklearn.ensemble import GradientBoostingRegressor
 DEFAULT_MAX_SCORE = 5.0
 DEFAULT_MODEL_PATH = Path("grade_mapper.joblib")
 
+
+def snap_grade(grade: float) -> float:
+    """Round to nearest 0.5; scores below 0.5 become 0."""
+    if grade < 0.5:
+        return 0.0
+    return round(grade * 2) / 2
+
 GBM_PARAMS = dict(
     n_estimators=100,
     max_depth=2,
@@ -33,10 +40,10 @@ class GradeMapper:
         self._model = GradientBoostingRegressor(**params)
         self._fitted = False
 
-    def fit(self, X: np.ndarray, scores: list[float] | np.ndarray) -> "GradeMapper":
+    def fit(self, X: np.ndarray, scores: list[float] | np.ndarray, sample_weight: np.ndarray | None = None) -> "GradeMapper":
         X = np.asarray(X, dtype=float)
         y = np.asarray(scores, dtype=float)
-        self._model.fit(X, y)
+        self._model.fit(X, y, sample_weight=sample_weight)
         self._fitted = True
         return self
 
