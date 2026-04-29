@@ -132,8 +132,10 @@ async function gradeAll() {
       }
       const raw = grades[i]?.predicted_grade ?? 0;
       const curved = q.max_marks * Math.pow(raw / q.max_marks, 1.5);
+      const rounded = Math.round(curved * 2) / 2;
+      const final = rounded / q.max_marks > 0.95 ? q.max_marks : rounded;
       newSummary.students[sub.roll_number].grades[q.id] = {
-        grade:    curved,
+        grade:    final,
         answer:   sub.answer,
         features: grades[i]?.features ?? {},
       };
