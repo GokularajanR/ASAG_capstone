@@ -98,9 +98,10 @@ function init() {
 
   const sel = document.getElementById('q-select');
   summary.questions.forEach(q => {
+    const n = Object.values(summary.students).filter(st => st.grades[q.id] !== undefined).length;
     const o = document.createElement('option');
     o.value = q.id;
-    o.textContent = q.text.slice(0, 90);
+    o.textContent = q.text.slice(0, 90) + (n ? '' : '  (no responses)');
     sel.appendChild(o);
   });
 
@@ -138,10 +139,16 @@ function onSelect() {
 function renderStats(rows, maxMarks) {
   const vals = rows.map(r => r.grade).sort((a,b)=>a-b);
   const n    = vals.length;
+  document.getElementById('s-n').textContent = n;
+  if (!n) {
+    document.getElementById('s-mean').textContent   = '—';
+    document.getElementById('s-median').textContent = '—';
+    document.getElementById('s-pass').textContent   = '—';
+    return;
+  }
   const mean = vals.reduce((s,v)=>s+v,0)/n;
   const med  = n%2 ? vals[Math.floor(n/2)] : (vals[n/2-1]+vals[n/2])/2;
   const pass = vals.filter(v => v/maxMarks >= 0.6).length;
-  document.getElementById('s-n').textContent      = n;
   document.getElementById('s-mean').textContent   = mean.toFixed(2);
   document.getElementById('s-median').textContent = med.toFixed(2);
   document.getElementById('s-pass').textContent   = Math.round(pass/n*100) + '%';

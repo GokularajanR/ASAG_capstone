@@ -110,6 +110,9 @@ async function gradeAll() {
     const q = questions[qi];
     setStatus('info', `Grading question ${qi+1} / ${questions.length}: "${q.text.slice(0,50)}…"`);
 
+    // Always include the question — even with zero submissions it counts toward total possible marks
+    newSummary.questions.push({ id:q.id, text:q.text, subject:q.subject, max_marks:q.max_marks });
+
     const subs = await get(`submissions?question_id=${q.id}`);
     if (!subs.length) continue;
 
@@ -121,16 +124,16 @@ async function gradeAll() {
     const grades = await pollJob(jobRes.id);
     if (!grades) { setStatus('error', `Grading failed on question ${qi+1}.`); btn.disabled=false; return; }
 
-    newSummary.questions.push({ id:q.id, text:q.text, subject:q.subject, max_marks:q.max_marks });
-
     subs.forEach((sub, i) => {
       if (!newSummary.students[sub.roll_number]) {
         newSummary.students[sub.roll_number] = {
           name: sub.student_name, roll: sub.roll_number, grades: {}
         };
       }
+      const raw = grades[i]?.predicted_grade ?? 0;
+      const curved = q.max_marks * Math.pow(raw / q.max_marks, 1.5);
       newSummary.students[sub.roll_number].grades[q.id] = {
-        grade:    grades[i]?.predicted_grade ?? 0,
+        grade:    curved,
         answer:   sub.answer,
         features: grades[i]?.features ?? {},
       };
