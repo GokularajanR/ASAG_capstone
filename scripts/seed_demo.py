@@ -1,5 +1,5 @@
 """
-Seed script: imports physics_quiz.json and submits sample answers from 3 students.
+Seed script: imports physics_quiz.json and submits sample answers from 6 students.
 
 Usage:
     .venv/Scripts/python.exe scripts/seed_demo.py [--api http://localhost:8000] [--key dev-key]
@@ -14,7 +14,7 @@ from pathlib import Path
 
 STUDENTS = [
     {
-        "name": "Alice Sharma",
+        "name": "Gokularajan R",
         "roll": "PHY2024001",
         "level": "good",
         "answers": [
@@ -41,7 +41,7 @@ STUDENTS = [
         ],
     },
     {
-        "name": "Ben Carter",
+        "name": "Prashitha JR",
         "roll": "PHY2024002",
         "level": "average",
         "answers": [
@@ -68,7 +68,7 @@ STUDENTS = [
         ],
     },
     {
-        "name": "Chris Patel",
+        "name": "Ashwin Felix",
         "roll": "PHY2024003",
         "level": "weak",
         "answers": [
@@ -94,6 +94,87 @@ STUDENTS = [
             "Force is mass times acceleration. More mass means harder to push.",
         ],
     },
+    {
+        "name": "Ayushman Kumar",
+        "roll": "PHY2024004",
+        "level": "mixed",
+        "answers": [
+            # Q1 – strong
+            "Gravity is a fundamental force of attraction between all objects with mass. On Earth it pulls everything toward the planet's centre, giving objects weight.",
+            # Q2 – weak
+            "Mass and weight are kind of the same thing, both measure how heavy you are.",
+            # Q3 – strong
+            "Friction is the resistive force between two surfaces in contact. Without it cars could not brake — brake pads press against the wheel and friction converts kinetic energy to heat, slowing the car.",
+            # Q4 – weak
+            "Things keep moving or stay still. A force can change that.",
+            # Q5 – strong
+            "Speed is the scalar measure of how fast an object moves. Velocity is speed with a specified direction, making it a vector quantity. A car doing 60 km/h has speed; 60 km/h due north is velocity.",
+            # Q6 – weak
+            "Potential energy is stored energy and kinetic energy is moving energy.",
+            # Q7 – strong
+            "A lever consists of a rigid beam, a fulcrum which is the pivot, the effort force applied by the user, and the load being moved. Placing the fulcrum nearer the load reduces the effort needed to lift it.",
+            # Q8 – weak
+            "A circuit has wires and a battery. Electricity goes around and powers things.",
+            # Q9 – strong
+            "Magnets have a north pole and a south pole. Opposite poles attract each other while like poles repel. The magnetic force can act on ferromagnetic materials like iron and nickel without contact.",
+            # Q10 – weak
+            "F equals ma. More force makes things go faster.",
+        ],
+    },
+    {
+        "name": "Yuva Yashvin",
+        "roll": "PHY2024005",
+        "level": "mixed",
+        "answers": [
+            # Q1 – weak
+            "Gravity pulls things down to Earth.",
+            # Q2 – strong
+            "Mass is the measure of matter in an object and stays constant everywhere. Weight is the gravitational pull on that mass, so an astronaut weighs less on the Moon but has the same mass.",
+            # Q3 – weak
+            "Friction happens when things touch each other and slows them down.",
+            # Q4 – strong
+            "Newton's First Law states that an object remains at rest or in uniform motion in a straight line unless acted upon by an external unbalanced force. This property is called inertia.",
+            # Q5 – weak
+            "Speed is fast and velocity is also fast but has a direction too.",
+            # Q6 – strong
+            "Potential energy is energy stored due to an object's position, like a book on a shelf. Kinetic energy is the energy of motion. As the book falls, potential energy converts to kinetic energy.",
+            # Q7 – weak
+            "A lever helps you lift stuff. There is a pivot in the middle.",
+            # Q8 – strong
+            "An electric circuit is a complete closed path for current to flow. It requires a source like a battery, conducting wires, and a load such as a bulb. Breaking the circuit stops current flow immediately.",
+            # Q9 – weak
+            "Magnets have two poles and stick to some metals.",
+            # Q10 – strong
+            "Newton's Second Law: force equals mass multiplied by acceleration (F = ma). Doubling the force doubles the acceleration. A 5 kg object accelerated at 4 m/s² requires 20 N of net force.",
+        ],
+    },
+    {
+        "name": "Ram Tabjulu",
+        "roll": "PHY2024006",
+        "level": "mixed",
+        "answers": [
+            # Q1 – average
+            "Gravity is a force that pulls objects toward each other. Earth's gravity pulls us down.",
+            # Q2 – strong
+            "Mass is the amount of matter in an object and does not change with location. Weight is the force of gravity on the object, so it varies — you would weigh less on the Moon than on Earth.",
+            # Q3 – average
+            "Friction is the force that opposes motion between surfaces. It is useful in brakes and shoes.",
+            # Q4 – strong
+            "Newton's First Law says an object at rest stays at rest and a moving object keeps moving at constant velocity unless a net external force acts on it. A hockey puck slides because friction is low.",
+            # Q5 – average
+            "Speed tells you how fast something is moving. Velocity is speed but also includes the direction of movement.",
+            # Q6 – weak
+            "Potential energy is stored. Kinetic is movement energy.",
+            # Q7 – average
+            "A lever has a fulcrum, an effort side and a load side. Pushing the effort down lifts the load up.",
+            # Q8 – strong
+            "A circuit is a closed loop allowing electric current to flow from the positive terminal of a battery through wires and a load like a bulb and back to the negative terminal. An open circuit stops the flow.",
+            # Q9 – weak
+            "Magnets attract metal objects and have a north and south side.",
+            # Q10 – average
+            "Newton's Second Law: force equals mass times acceleration. A larger mass requires more force to achieve the same acceleration.",
+        ],
+    },
 ]
 
 
@@ -108,7 +189,7 @@ def api(url, data=None, key="dev-key"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--api", default="http://localhost:8000")
+    parser.add_argument("--api", default="https://asag-app.azurewebsites.net")
     parser.add_argument("--key", default="dev-key")
     parser.add_argument("--quiz", default="physics_quiz.json")
     args = parser.parse_args()
